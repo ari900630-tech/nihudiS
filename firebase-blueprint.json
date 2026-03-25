@@ -1,0 +1,76 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and settings",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "User ID" },
+        "name": { "type": "string", "description": "User's name" },
+        "age": { "type": "number", "description": "User's age" },
+        "bio": { "type": "string", "description": "User's bio" },
+        "lookingFor": { "type": "string", "description": "What the user is looking for" },
+        "sector": { "type": "string", "description": "User's sector" },
+        "image": { "type": "string", "description": "Profile image (base64)" },
+        "agreedToRules": { "type": "boolean", "description": "Whether the user agreed to rules" },
+        "appColor": { "type": "string", "description": "Preferred app color theme" },
+        "textSize": { "type": "string", "description": "Preferred text size" },
+        "blockedUsers": { 
+          "type": "array", 
+          "items": { "type": "string" },
+          "description": "List of blocked user IDs" 
+        },
+        "role": { "type": "string", "description": "User role (admin/user)" },
+        "gender": { "type": "string", "description": "User's gender" },
+        "city": { "type": "string", "description": "User's city" },
+        "height": { "type": "string", "description": "User's height" },
+        "education": { "type": "string", "description": "User's education" },
+        "occupation": { "type": "string", "description": "User's occupation" },
+        "religiousLevel": { "type": "string", "description": "User's religious level" },
+        "maritalStatus": { "type": "string", "description": "User's marital status" }
+      },
+      "required": ["uid"]
+    },
+    "Report": {
+      "title": "Report",
+      "description": "Report submitted by a user to the manager",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Report ID" },
+        "reporterUid": { "type": "string", "description": "UID of the user who submitted the report" },
+        "reporterName": { "type": "string", "description": "Name of the user who submitted the report" },
+        "content": { "type": "string", "description": "Content of the report" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the report was created" },
+        "status": { "type": "string", "enum": ["pending", "resolved"], "description": "Status of the report" }
+      },
+      "required": ["reporterUid", "content", "createdAt"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "A message in a chat",
+      "type": "object",
+      "properties": {
+        "chatId": { "type": "string", "description": "ID of the chat (e.g. reportId)" },
+        "senderUid": { "type": "string", "description": "UID of the sender" },
+        "recipientUid": { "type": "string", "description": "UID of the recipient" },
+        "text": { "type": "string", "description": "Message text" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the message was sent" }
+      },
+      "required": ["chatId", "senderUid", "recipientUid", "text", "createdAt"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Stores user profiles and settings"
+    },
+    "reports/{reportId}": {
+      "schema": { "$ref": "#/entities/Report" },
+      "description": "Stores reports submitted by users"
+    },
+    "messages/{messageId}": {
+      "schema": { "$ref": "#/entities/Message" },
+      "description": "Stores chat messages"
+    }
+  }
+}

@@ -1,0 +1,138 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    // Collection: users
+    // Document ID: {userId}
+    // Fields:
+    //   - uid: string (required)
+    //   - name: string (optional)
+    //   - age: number (optional)
+    //   - bio: string (optional)
+    //   - lookingFor: string (optional)
+    //   - sector: string (optional)
+    //   - image: string (optional)
+    //   - agreedToRules: boolean (optional)
+    //   - appColor: string (optional)
+    //   - textSize: string (optional)
+    //   - blockedUsers: list of strings (optional)
+    //   - role: string (optional)
+    //   - gender: string (optional)
+    //   - city: string (optional)
+    //   - height: string (optional)
+    //   - education: string (optional)
+    //   - occupation: string (optional)
+    //   - religiousLevel: string (optional)
+    //   - maritalStatus: string (optional)
+    // ===============================================================
+
+    // Collection: reports
+    // Document ID: {reportId}
+    // Fields:
+    //   - reporterUid: string (required)
+    //   - reporterName: string (optional)
+    //   - content: string (required)
+    //   - createdAt: string (required, ISO 8601)
+    //   - status: string (optional, enum: pending, resolved)
+    // ===============================================================
+
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (
+          (request.auth.token.email == "ari900630@gmail.com" && request.auth.token.email_verified == true) ||
+          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'user') == 'admin')
+        );
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function uidUnchanged() {
+      return !('uid' in request.resource.data) || request.resource.data.uid == request.auth.uid;
+    }
+
+    function uidNotModified() {
+      return !('uid' in request.resource.data) || request.resource.data.uid == resource.data.uid;
+    }
+
+    function isValidUser(data) {
+      return (
+        (!('uid' in data) || (data.uid is string && data.uid.size() <= 128)) &&
+        (!('name' in data) || (data.name is string && data.name.size() <= 100)) &&
+        (!('age' in data) || (data.age is number && data.age >= 18 && data.age <= 120)) &&
+        (!('bio' in data) || (data.bio is string && data.bio.size() <= 1000)) &&
+        (!('lookingFor' in data) || (data.lookingFor is string && data.lookingFor.size() <= 1000)) &&
+        (!('sector' in data) || (data.sector is string && data.sector.size() <= 50)) &&
+        (!('image' in data) || (data.image is string && data.image.size() <= 1048576)) &&
+        (!('agreedToRules' in data) || data.agreedToRules is bool) &&
+        (!('appColor' in data) || (data.appColor is string && data.appColor.size() <= 20)) &&
+        (!('textSize' in data) || (data.textSize is string && data.textSize.size() <= 20)) &&
+        (!('blockedUsers' in data) || (data.blockedUsers is list && data.blockedUsers.size() <= 1000)) &&
+        (!('role' in data) || (data.role is string && data.role.size() <= 20)) &&
+        (!('gender' in data) || (data.gender is string && data.gender.size() <= 20)) &&
+        (!('city' in data) || (data.city is string && data.city.size() <= 100)) &&
+        (!('height' in data) || (data.height is string && data.height.size() <= 20)) &&
+        (!('education' in data) || (data.education is string && data.education.size() <= 100)) &&
+        (!('occupation' in data) || (data.occupation is string && data.occupation.size() <= 100)) &&
+        (!('religiousLevel' in data) || (data.religiousLevel is string && data.religiousLevel.size() <= 50)) &&
+        (!('maritalStatus' in data) || (data.maritalStatus is string && data.maritalStatus.size() <= 50))
+      );
+    }
+
+    function isValidReport(data) {
+      return (
+        data.reporterUid is string && data.reporterUid == request.auth.uid &&
+        data.content is string && data.content.size() > 0 && data.content.size() <= 2000 &&
+        data.createdAt is string &&
+        (!('reporterName' in data) || (data.reporterName is string && data.reporterName.size() <= 100)) &&
+        (!('status' in data) || (data.status in ['pending', 'resolved']))
+      );
+    }
+
+    match /users/{userId} {
+      // Allow authenticated users to read profiles for matching
+      // Note: This allows reading all fields in the document. Review for PII exposure.
+      allow read: if isAuthenticated();
+      allow create: if isOwner(userId) && uidUnchanged() && isValidUser(request.resource.data) && (request.resource.data.role == 'user' || isAdmin());
+      allow update: if isOwner(userId) && uidNotModified() && isValidUser(request.resource.data) && (request.resource.data.role == resource.data.role || isAdmin());
+      allow delete: if isOwner(userId) || isAdmin();
+    }
+
+    match /reports/{reportId} {
+      allow read: if isAdmin();
+      allow create: if isAuthenticated() && isValidReport(request.resource.data);
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /messages/{messageId} {
+      allow read: if isAuthenticated() && (isAdmin() || resource.data.senderUid == request.auth.uid || resource.data.recipientUid == request.auth.uid);
+      allow create: if isAuthenticated() && request.resource.data.senderUid == request.auth.uid;
+      allow update: if isAuthenticated() && 
+        (resource.data.recipientUid == request.auth.uid || isAdmin()) && 
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+      allow delete: if isAdmin();
+    }
+
+    match /likes/{likeId} {
+      allow read: if isAuthenticated() && (resource.data.from == request.auth.uid || resource.data.to == request.auth.uid);
+      allow create: if isAuthenticated() && request.resource.data.from == request.auth.uid;
+      allow delete: if isAuthenticated() && resource.data.from == request.auth.uid;
+    }
+
+    match /matches/{matchId} {
+      allow read: if isAuthenticated() && request.auth.uid in resource.data.users;
+      allow create: if isAuthenticated() && request.auth.uid in request.resource.data.users;
+      allow delete: if isAdmin();
+    }
+  }
+}
